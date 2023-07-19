@@ -18,6 +18,7 @@ jobs:
     runs-on: ["self-hosted", "Linux", "ARM64"]
     steps:
       - uses: actions/checkout@v2
+      
       #- uses: google-github-actions/setup-gcloud@master
       #  with:
       #    version: '285.0.0'
@@ -69,7 +70,7 @@ jobs:
           else
             Harbor_Build_Base_Tag=dev-arm
           fi
-          sudo make download
+          make download
           cd src/github.com/goharbor/harbor-arm
           if [ -z "$BUILD_BASE"  ] || [ "$BUILD_BASE" != "true"  ]; then
             echo "Do not need to build base images!"
