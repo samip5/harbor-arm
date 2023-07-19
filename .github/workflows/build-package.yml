@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-          - master
+          - main
           - release-*
   schedule:
     - cron: 0 2 * * *
@@ -108,6 +108,7 @@ jobs:
             Harbor_Build_Base_Tag=dev-arm
           fi
 
+          sudo make download
           cd src/github.com/goharbor/harbor-arm
           sudo make package_online GOBUILDTAGS="include_oss include_gcs" BASEIMAGETAG=${Harbor_Build_Base_Tag} VERSIONTAG=${Harbor_Assets_Version} PKGVERSIONTAG=${Harbor_Package_Version} BUILDBIN=true NOTARYFLAG=true TRIVYFLAG=true HTTPPROXY=
           harbor_online_build_bundle=$(basename harbor-online-installer-arm-*.tgz)
