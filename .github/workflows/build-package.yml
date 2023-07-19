@@ -11,44 +11,20 @@ on:
   schedule:
     - cron: 0 2 * * *
 jobs:
-  BUILD_PACKAGE:
+  BUILD_BASE:
     env:
-        BUILD_PACKAGE: true
-        BUILD_BASE: true
-    runs-on: ["self-hosted", "Linux", "ARM64"]
+      BUILD_BASE: true
+    runs-on: [ "self-hosted", "Linux", "ARM64" ]
     steps:
       - uses: actions/checkout@v2
-      
-      #- uses: google-github-actions/setup-gcloud@master
-      #  with:
-      #    version: '285.0.0'
-      #    project_id: ${{ secrets.GCP_PROJECT_ID }}
-      #    service_account_email: ${{ secrets.GCP_SA_EMAIL }}
-      #    service_account_key: ${{ secrets.GCP_SA_KEY }}
-      #    export_default_credentials: true
-      #- run: gcloud info
       - name: Set up Go 1.20
         uses: actions/setup-go@v1
         with:
           go-version: 1.20
         id: go
-      #- name: setup Docker
-      #  uses: docker-practice/actions-setup-docker@0.0.1
-      #  with:
-      #    docker_version: 20.10
-      #    docker_channel: stable
       - name: setup Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v1
-      - uses: jitterbit/get-changed-files@v1
-        id: changed-files
-        if: ${{ github.event_name != 'workflow_dispatch' || github.event.triggered_via != '' }}
-        with:
-          format: space-delimited
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v2
-        with:
-            path: src/github.com/goharbor/harbor-arm
       - name: Build Harbor-ARM Images
         run: |
           set -x
@@ -57,7 +33,7 @@ jobs:
           target_release_version=$(cat ./VERSION)-arm
           Harbor_Package_Version=$target_release_version-'build.'$GITHUB_RUN_NUMBER
 
-          if [[ $target_branch == "master" ]]; then
+          if [[ $target_branch == "main" ]]; then
             Harbor_Assets_Version=$Harbor_Package_Version
             harbor_target_bucket=$harbor_builds_bucket
           else
@@ -70,8 +46,8 @@ jobs:
           else
             Harbor_Build_Base_Tag=dev-arm
           fi
-          make download
-          cd src/github.com/goharbor/harbor-arm
+          make download && sudo make compile_redis && sudo make pre_update
+          sudo make compile COMPILETAG=compile_golangimage
           if [ -z "$BUILD_BASE"  ] || [ "$BUILD_BASE" != "true"  ]; then
             echo "Do not need to build base images!"
           else
@@ -79,7 +55,55 @@ jobs:
           fi
           sudo make build BASEIMAGETAG=${Harbor_Build_Base_Tag} VERSIONTAG=${Harbor_Assets_Version} PKGVERSIONTAG=${Harbor_Package_Version} BUILDBIN=true NOTARYFLAG=true CHARTFLAG=true TRIVYFLAG=true HTTPPROXY= ${build_base_params}
           #echo -en "${{ secrets.HARBOR_SIGN_KEY }}" |  gpg --import
-          
+
+          publishImage $target_branch $Harbor_Assets_Version "${{ secrets.DOCKER_HUB_USERNAME }}" "${{ secrets.DOCKER_HUB_PASSWORD }}"
+  BUILD_PACKAGE:
+    env:
+        BUILD_PACKAGE: true
+    runs-on: ["self-hosted", "Linux", "ARM64"]
+    needs:
+      - BUILD_BASE
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Go 1.20
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.20
+        id: go
+      - name: setup Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Build Harbor-ARM Images
+        run: |
+          set -x
+          env
+          # the target release version is the version of next release(RC or GA). It needs to be updated on creating new release branch.
+          target_release_version=$(cat ./VERSION)-arm
+          Harbor_Package_Version=$target_release_version-'build.'$GITHUB_RUN_NUMBER
+
+          if [[ $target_branch == "main" ]]; then
+            Harbor_Assets_Version=$Harbor_Package_Version
+            harbor_target_bucket=$harbor_builds_bucket
+          else
+            Harbor_Assets_Version=$target_release_version
+            harbor_target_bucket=$harbor_releases_bucket/$target_branch
+          fi
+
+          if [[ $target_branch == "release-"* ]]; then
+            Harbor_Build_Base_Tag=$target_release_version
+          else
+            Harbor_Build_Base_Tag=dev-arm
+          fi
+          make download && sudo make compile_redis && sudo make pre_update
+          sudo make compile COMPILETAG=compile_golangimage
+          if [ -z "$BUILD_BASE"  ] || [ "$BUILD_BASE" != "true"  ]; then
+            echo "Do not need to build base images!"
+          else
+            build_base_params=" BUILD_BASE=true PUSHBASEIMAGE=true REGISTRYUSER=\"${{ secrets.DOCKER_HUB_USERNAME }}\" REGISTRYPASSWORD=\"${{ secrets.DOCKER_HUB_PASSWORD }}\""
+          fi
+          sudo make build BASEIMAGETAG=${Harbor_Build_Base_Tag} VERSIONTAG=${Harbor_Assets_Version} PKGVERSIONTAG=${Harbor_Package_Version} BUILDBIN=true NOTARYFLAG=true CHARTFLAG=true TRIVYFLAG=true HTTPPROXY= ${build_base_params}
+          #echo -en "${{ secrets.HARBOR_SIGN_KEY }}" |  gpg --import
+
           publishImage $target_branch $Harbor_Assets_Version "${{ secrets.DOCKER_HUB_USERNAME }}" "${{ secrets.DOCKER_HUB_PASSWORD }}"
       - name: Build Package
         run: |
@@ -97,7 +121,7 @@ jobs:
           target_release_version=$(cat ./VERSION)-arm
           Harbor_Package_Version=$target_release_version-'build.'$GITHUB_RUN_NUMBER
 
-          if [[ $target_branch == "master" ]]; then
+          if [[ $target_branch == "main" ]]; then
             Harbor_Assets_Version=$Harbor_Package_Version
             harbor_target_bucket=$harbor_builds_bucket
           else
