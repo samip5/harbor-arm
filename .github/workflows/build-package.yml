@@ -40,6 +40,7 @@ jobs:
         uses: docker/setup-buildx-action@v1
       - uses: jitterbit/get-changed-files@v1
         id: changed-files
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.triggered_via != '' }}
         with:
           format: space-delimited
           token: ${{ secrets.GITHUB_TOKEN }}
