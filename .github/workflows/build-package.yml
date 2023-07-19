@@ -68,6 +68,7 @@ jobs:
           else
             Harbor_Build_Base_Tag=dev-arm
           fi
+          sudo make download
           cd src/github.com/goharbor/harbor-arm
           if [ -z "$BUILD_BASE"  ] || [ "$BUILD_BASE" != "true"  ]; then
             echo "Do not need to build base images!"
@@ -108,7 +109,6 @@ jobs:
             Harbor_Build_Base_Tag=dev-arm
           fi
 
-          sudo make download
           cd src/github.com/goharbor/harbor-arm
           sudo make package_online GOBUILDTAGS="include_oss include_gcs" BASEIMAGETAG=${Harbor_Build_Base_Tag} VERSIONTAG=${Harbor_Assets_Version} PKGVERSIONTAG=${Harbor_Package_Version} BUILDBIN=true NOTARYFLAG=true TRIVYFLAG=true HTTPPROXY=
           harbor_online_build_bundle=$(basename harbor-online-installer-arm-*.tgz)
